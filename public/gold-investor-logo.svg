@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Gold Investor G logo">
+  <defs>
+    <linearGradient id="gold" x1="9" y1="6" x2="55" y2="58" gradientUnits="userSpaceOnUse"><stop stop-color="#fff1a3"/><stop offset=".25" stop-color="#e8bd4c"/><stop offset=".56" stop-color="#c58b11"/><stop offset=".82" stop-color="#8d5a03"/><stop offset="1" stop-color="#f2cf65"/></linearGradient>
+    <radialGradient id="coin" cx="35%" cy="25%" r="80%"><stop stop-color="#3b2b11"/><stop offset=".62" stop-color="#1c1509"/><stop offset="1" stop-color="#0c0904"/></radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="4" stdDeviation="3" flood-color="#503100" flood-opacity=".42"/></filter>
+  </defs>
+  <rect width="64" height="64" rx="18" fill="#151005"/>
+  <circle cx="32" cy="31" r="24" fill="url(#gold)" filter="url(#shadow)"/>
+  <circle cx="32" cy="31" r="20.5" fill="url(#coin)" stroke="#ffe58a" stroke-width="1"/>
+  <circle cx="32" cy="31" r="17.2" fill="none" stroke="#b97d09" stroke-width=".8" stroke-dasharray="1.2 2.2"/>
+  <path d="M21.5 46.5h21l3 5h-27z" fill="url(#gold)" stroke="#ffe58a" stroke-width=".6"/>
+  <text x="32" y="40" fill="url(#gold)" font-family="Georgia,Times New Roman,serif" font-size="29" font-weight="700" text-anchor="middle">G</text>
+  <path d="M25 16.5h14" stroke="#e3b642" stroke-width="1"/><circle cx="22" cy="31" r="1" fill="#f4d56f"/><circle cx="42" cy="31" r="1" fill="#f4d56f"/>
+  <path d="m32 10.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z" fill="#ffe990"/>
+</svg>
