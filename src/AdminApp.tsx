@@ -1,0 +1,34 @@
+import { useCallback, useEffect, useState } from 'react'
+import type { Session } from '@supabase/supabase-js'
+import { adminSupabase as supabase } from './lib/supabase'
+import './Admin.css'
+
+type Payment = { id:string; method:string; transaction_id:string; amount:number; proof_path:string; status:string; admin_note:string|null; created_at:string; profiles?:{full_name:string;phone:string|null}|null }
+type Withdrawal = { id:string; amount:number; status:string; created_at:string; profiles?:{full_name:string;phone:string|null}|null; investments?:{plan_name:string;withdrawal_available_at:string}|null }
+
+export default function AdminApp(){
+  const [session,setSession]=useState<Session|null>(null),[allowed,setAllowed]=useState<boolean|null>(null)
+  const [email,setEmail]=useState('info@goldinvestor.com'),[password,setPassword]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false)
+  const [payments,setPayments]=useState<Payment[]>([]),[withdrawals,setWithdrawals]=useState<Withdrawal[]>([]),[view,setView]=useState<'payments'|'withdrawals'>('payments')
+
+  const load=useCallback(async()=>{
+    const [{data:p,error:pe},{data:w,error:we}]=await Promise.all([
+      supabase.from('payment_requests').select('id,method,transaction_id,amount,proof_path,status,admin_note,created_at,profiles!payment_requests_user_id_fkey(full_name,phone)').order('created_at',{ascending:false}),
+      supabase.from('withdrawal_requests').select('id,amount,status,created_at,profiles!withdrawal_requests_user_id_fkey(full_name,phone),investments(plan_name,withdrawal_available_at)').order('created_at',{ascending:false}),
+    ])
+    if(pe||we)setError(pe?.message||we?.message||'তথ্য লোড হয়নি')
+    setPayments((p||[]) as unknown as Payment[]);setWithdrawals((w||[]) as unknown as Withdrawal[])
+  },[])
+
+  useEffect(()=>{supabase.auth.getSession().then(({data})=>setSession(data.session));const {data}=supabase.auth.onAuthStateChange((_e,s)=>setSession(s));return()=>data.subscription.unsubscribe()},[])
+  useEffect(()=>{(async()=>{if(!session){setAllowed(false);return}const {data}=await supabase.from('profiles').select('role').eq('id',session.user.id).single();const ok=data?.role==='admin';setAllowed(ok);if(ok)load()})()},[session,load])
+
+  const login=async(e:React.FormEvent)=>{e.preventDefault();setBusy(true);setError('');const {error}=await supabase.auth.signInWithPassword({email,password});if(error)setError('Email অথবা password সঠিক নয়');setBusy(false)}
+  const review=async(kind:'payment'|'withdrawal',id:string,status:'approved'|'rejected')=>{const note=window.prompt(status==='approved'?'অনুমোদনের নোট (ঐচ্ছিক)':'বাতিলের কারণ লিখুন')||null;const table=kind==='payment'?'payment_requests':'withdrawal_requests';const {error}=await supabase.from(table).update({status,admin_note:note,reviewed_by:session!.user.id,reviewed_at:new Date().toISOString()}).eq('id',id);if(error)return setError(error.message);await supabase.from('admin_audit_logs').insert({admin_id:session!.user.id,action:status,entity_type:kind,entity_id:id,metadata:{note}});load()}
+  const proof=async(path:string)=>{const {data,error}=await supabase.storage.from('payment-proofs').createSignedUrl(path,300);if(error)return setError(error.message);window.open(data.signedUrl,'_blank','noopener,noreferrer')}
+
+  if(!session||allowed===false)return <main className="admin-login"><form onSubmit={login}><div className="admin-seal">G</div><span>GOLD INVESTOR • SECURE ADMIN</span><h1>Admin Panel</h1><p>অনুমোদিত administrator account দিয়ে প্রবেশ করুন।</p><label>Email<input type="email" value={email} onChange={e=>setEmail(e.target.value)} required/></label><label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} required autoComplete="current-password"/></label>{error&&<div className="admin-error">{error}</div>}<button disabled={busy}>{busy?'যাচাই হচ্ছে…':'নিরাপদে লগইন করুন'}</button><a href="/">← ওয়েবসাইটে ফিরুন</a></form></main>
+  if(allowed===null)return <div className="admin-loading">Admin access যাচাই হচ্ছে…</div>
+  const pendingPayments=payments.filter(x=>x.status==='pending').length,pendingWithdrawals=withdrawals.filter(x=>x.status==='pending').length
+  return <div className="admin-shell"><aside><div className="admin-brand"><i>G</i><b>Gold Investor</b><span>ADMIN CONTROL</span></div><button className={view==='payments'?'active':''} onClick={()=>setView('payments')}>পেমেন্ট যাচাই <em>{pendingPayments}</em></button><button className={view==='withdrawals'?'active':''} onClick={()=>setView('withdrawals')}>উত্তোলন অনুরোধ <em>{pendingWithdrawals}</em></button><a href="/">ওয়েবসাইট দেখুন</a><button className="admin-logout" onClick={()=>supabase.auth.signOut()}>লগআউট</button></aside><main><header><div><span>ADMIN OVERVIEW</span><h1>{view==='payments'?'পেমেন্ট যাচাইকরণ':'উত্তোলন ব্যবস্থাপনা'}</h1></div><button onClick={load}>↻ Refresh</button></header>{error&&<div className="admin-error">{error}</div>}<section className="admin-stats"><article><span>Pending payments</span><b>{pendingPayments}</b></article><article><span>Pending withdrawals</span><b>{pendingWithdrawals}</b></article><article><span>Approved payments</span><b>{payments.filter(x=>x.status==='approved').length}</b></article></section>{view==='payments'?<div className="admin-list">{payments.length===0?<div className="admin-empty">কোনো payment request নেই</div>:payments.map(x=><article key={x.id}><div><span className={`status ${x.status}`}>{x.status}</span><h3>{x.profiles?.full_name||'Customer'} • {x.method}</h3><p>{x.profiles?.phone||'Phone unavailable'} · TXID: {x.transaction_id}</p><small>{new Date(x.created_at).toLocaleString('bn-BD')}</small></div><strong>৳{Number(x.amount).toLocaleString('bn-BD')}</strong><div className="admin-actions"><button onClick={()=>proof(x.proof_path)}>প্রমাণ দেখুন</button>{x.status==='pending'&&<><button className="approve" onClick={()=>review('payment',x.id,'approved')}>অনুমোদন</button><button className="reject" onClick={()=>review('payment',x.id,'rejected')}>বাতিল</button></>}</div></article>)}</div>:<div className="admin-list">{withdrawals.length===0?<div className="admin-empty">কোনো withdrawal request নেই</div>:withdrawals.map(x=><article key={x.id}><div><span className={`status ${x.status}`}>{x.status}</span><h3>{x.profiles?.full_name||'Customer'} • {x.investments?.plan_name||'Investment'}</h3><p>Available: {x.investments?.withdrawal_available_at?new Date(x.investments.withdrawal_available_at).toLocaleString('bn-BD'):'—'}</p><small>{new Date(x.created_at).toLocaleString('bn-BD')}</small></div><strong>৳{Number(x.amount).toLocaleString('bn-BD')}</strong>{x.status==='pending'&&<div className="admin-actions"><button className="approve" onClick={()=>review('withdrawal',x.id,'approved')}>অনুমোদন</button><button className="reject" onClick={()=>review('withdrawal',x.id,'rejected')}>বাতিল</button></div>}</article>)}</div>}</main></div>
+}
